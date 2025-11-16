@@ -12,6 +12,15 @@ users_table = dynamodb.Table(os.environ["USERS_TABLE"])
 tokens_table = dynamodb.Table(os.environ["TOKENS_TABLE"])
 incidents_table = dynamodb.Table(os.environ["INCIDENTS_TABLE"])
 
+def parse_iso_to_utc(s: str) -> datetime:
+    if s.endswith("Z"):
+        dt = datetime.fromisoformat(s.replace("Z", "+00:00"))
+    else:
+        dt = datetime.fromisoformat(s)
+    if dt.tzinfo is None:
+        dt = dt.replace(tzinfo=timezone.utc)
+    return dt
+
 
 def _get_authorization_token(headers: dict):
     if not headers:
@@ -44,12 +53,11 @@ def _get_user_from_token(token: str):
     expires_at_str = token_item.get("ExpiresAt")
     if not expires_at_str:
         return None, None
-
-    expires_at = datetime.fromisoformat(expires_at_str)
+    expires_at = parse_iso_to_utc(expires_at_str)
     now = datetime.now(timezone.utc)
-
     if now > expires_at:
         return None, None
+
 
     # Obtener usuario por Role + UUID
     role = token_item["Role"]
@@ -81,7 +89,7 @@ def lambda_handler(event, context):
             }
 
         role = user["Role"]
-        user_id = user.get("UserId")
+        user_id = user.get("UUID")
         user_area = user.get("Area")
 
         # Query params para filtros
@@ -165,19 +173,19 @@ def lambda_handler(event, context):
             )
             items.extend(resp.get("Items", []))
 
-        # ---------- Filtro por tiempo de espera en Python ----------
-        now = datetime.now(timezone.utc)
 
         def compute_wait_minutes(incident):
             created_at_str = incident.get("CreatedAt")
             if not created_at_str:
                 return None
             try:
-                created_dt = datetime.fromisoformat(created_at_str)
-                diff = now - created_dt
+                created_dt = parse_iso_to_utc(created_at_str)
+                now_local = datetime.now(timezone.utc)
+                diff = now_local - created_dt
                 return diff.total_seconds() / 60.0
             except Exception:
                 return None
+
 
         filtered_items = []
         for inc in items:
@@ -196,7 +204,6 @@ def lambda_handler(event, context):
 
             filtered_items.append(inc)
 
-        # Opcional: ordenar por CreatedAt descendente
         filtered_items.sort(key=lambda x: x.get("CreatedAt", ""), reverse=True)
 
         return {
@@ -210,3 +217,4 @@ def lambda_handler(event, context):
             "statusCode": 500,
             "body": json.dumps({"error": str(e)})
         }
+
