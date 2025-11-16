@@ -10,7 +10,7 @@ from boto3.dynamodb.conditions import Attr
 dynamodb = boto3.resource("dynamodb")
 users_table = dynamodb.Table(os.environ["USERS_TABLE"])
 tokens_table = dynamodb.Table(os.environ["TOKENS_TABLE"])
-incidents_table = dynamodb.Table(os.environ["INCIDENTS_TABLE"])
+incidents_table = dynamodb.Table(os.environ["DYNAMO_TABLE"])
 
 def parse_iso_to_utc(s: str) -> datetime:
     if s.endswith("Z"):
