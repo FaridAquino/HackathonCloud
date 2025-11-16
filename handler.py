@@ -419,8 +419,7 @@ def EditIncidentContent(event, context):
                 'body': json.dumps(f'Error al procesar: {str(e)}')
             }
 
-def StaffChooseIncident(event, context):
-    
+def StaffChooseIncident(event, context):   
     connection_id = event['requestContext']['connectionId']
     connections_table = dynamodb.Table(CONNECTIONS_TABLE)
     users_table = dynamodb.Table(USERS_TABLE)
@@ -647,3 +646,248 @@ def CoordinatorAssignIncident(event,context):
             'body': json.dumps(f'Error al procesar: {str(e)}')
         }
 
+def SolvedIncident(event, context):
+    connection_id = event['requestContext']['connectionId']
+    connections_table = dynamodb.Table(CONNECTIONS_TABLE)
+    users_table = dynamodb.Table(USERS_TABLE)
+    table = dynamodb.Table(INCIDENTS_TABLE)
+
+    conn_resp = connections_table.get_item(Key={'connectionId': connection_id})
+
+    if 'Item' not in conn_resp:
+        return {'statusCode': 403, 'body': json.dumps('Conexión no autorizada. Reconecte.')}
+    
+    user_role = conn_resp['Item'].get('Role')
+    personal_uuid = conn_resp['Item'].get('CreatedById') # (Este es el UUID del usuario conectado)
+
+    if (user_role != 'Personal' and user_role != 'Coordinadores'):
+        return {'statusCode': 403, 'body': json.dumps('Acceso denegado. Solo Personal o Coordinadores puede resolver incidentes.')}
+    
+    try:
+        body = json.loads(event.get('body', '{}'))
+        incidente_uuid = body.get('uuid')
+        incidente_tenant_id = body.get('tenant_id')
+        
+        if not incidente_uuid or not incidente_tenant_id:
+            raise ValueError("Faltan 'uuid' o 'tenant_id' en el body")
+            
+    except Exception as e:
+        print(f"Error al parsear body: {e}")
+        return {'statusCode': 400, 'body': json.dumps(f'Body mal formado: {str(e)}')}
+
+    if (user_role == 'Personal'):
+        try:
+            response = table.update_item(
+                Key={
+                    'tenant_id': incidente_tenant_id,
+                    'uuid': incidente_uuid
+                },
+                UpdateExpression="SET #s = :s, #ra = :ra",
+                ExpressionAttributeNames={
+                    '#s': 'Status',
+                    '#ra': 'ResolvedAt'
+                },
+                ExpressionAttributeValues={
+                    ':s': 'Resuelto',
+                    ':ra': datetime.now(timezone.utc).isoformat()
+                },
+                ReturnValues="UPDATED_NEW"
+            )
+
+            response2 = None
+            try:
+                user_data = users_table.get_item(
+                    Key={
+                        'Role': 'Personal',
+                        'UUID': personal_uuid
+                    }
+                )
+
+                if 'Item' in user_data and 'ToList' in user_data['Item']:
+                    old_list = user_data['Item']['ToList']
+
+                    new_list = [
+                        task for task in old_list 
+                        if task.get('uuid') != incidente_uuid
+                    ]
+                    
+                    response2 = users_table.update_item(
+                        Key={
+                            'Role': 'Personal',
+                            'UUID': personal_uuid
+                        },
+                        UpdateExpression="SET #tl = :nl",
+                        ExpressionAttributeNames={'#tl': 'ToList'},
+                        ExpressionAttributeValues={':nl': new_list},
+                        ReturnValues="UPDATED_NEW"
+                    )
+
+            except Exception as e:
+                print(f"Error al actualizar la ToList del personal: {e}")
+
+            transmission_payload = {
+                'action': 'EditIncidentContent',
+                'uuid': incidente_uuid,
+                'status': 'SolvedIncident',
+                'response': response.get('Attributes'),
+                'response2': response2.get('Attributes') if response2 else None
+            }
+            transmitir(event, transmission_payload)
+
+            return {
+                'statusCode': 200,
+                'body': json.dumps({
+                    'message': 'Incidente marcado como resuelto', 
+                    'response': response.get('Attributes'), 
+                    'userUpdate': response2.get('Attributes') if response2 else None
+                })
+            }
+
+        except Exception as e:
+            print(f"Error en SolvedIncident para personal: {e}")
+            return {'statusCode': 500, 'body': json.dumps(f'Error al procesar: {str(e)}')}
+
+    else:
+        try:
+            new_comment = body.get("new_comment")
+            if not new_comment:
+                return {'statusCode': 400, 'body': json.dumps('Falta "new_comment" para escribir comentario')}
+                
+            new_comment_list = [{
+                'Date': datetime.now(timezone.utc).isoformat(),
+                'Comment': new_comment,
+                'Role': 'Coordinadores',
+                'UserId': conn_resp['Item'].get('CreatedById')
+            }]
+
+            response = table.update_item(
+                Key={
+                    'tenant_id': incidente_tenant_id,
+                    'uuid': incidente_uuid
+                },
+                UpdateExpression="SET #c = list_append(if_not_exists(#c, :empty_list), :c_val)",
+                ExpressionAttributeNames={'#c': 'Comment'},
+                ExpressionAttributeValues={
+                    ':c_val': new_comment_list, 
+                    ':empty_list': [] 
+                },
+                ReturnValues="UPDATED_NEW"
+            )
+                
+            transmission_payload = {
+                'action': 'EditIncidentContent',
+                'uuid': incidente_uuid,
+                'status': 'SolvedIncident',
+                'response': response.get('Attributes')
+            }
+            transmitir(event, transmission_payload)
+
+            return {
+                'statusCode': 200, 
+                'body': json.dumps({'message': 'Comentario agregado al incidente resuelto', 'updatedAttributes': response.get('Attributes')})
+            }
+
+        except Exception as e:
+            print(f"Error en SolvedIncident para coordinadores: {e}")
+            return {'statusCode': 500, 'body': json.dumps(f'Error al procesar: {str(e)}')}
+
+def AuthorityManageIncidents(event,context):
+    connection_id = event['requestContext']['connectionId']
+    connections_table = dynamodb.Table(CONNECTIONS_TABLE)
+    
+    conn_resp = connections_table.get_item(Key={'connectionId': connection_id})
+    if 'Item' not in conn_resp:
+        return {'statusCode': 403, 'body': json.dumps('Conexión no autorizada. Reconecte.')}
+    
+    user_role = conn_resp['Item'].get('Role')
+    usuario_uuid = conn_resp['Item'].get('CreatedById')
+
+    if (user_role != 'Coordinadores'):
+        return {'statusCode': 403, 'body': json.dumps('Acceso denegado. Solo Coordinadores puede cerrar incidentes.')}
+
+    try:
+        body = json.loads(event.get('body', '{}'))
+        incidente_tenant_id = body['tenant_id']
+        incidente_uuid = body['uuid']
+        actionToDo=body['actionToDo']
+        table = dynamodb.Table(INCIDENTS_TABLE)
+
+        if (actionToDo!= "Reasignar" and actionToDo!="Cerrar"):
+            return {
+                'statusCode': 400,
+                'body': json.dumps(f'Acción no permitida para Coordinadores: {actionToDo}')
+            }
+        
+        if (actionToDo == "Reasignar"):
+            try:
+                response = table.update_item(
+                    Key={
+                        'tenant_id': incidente_tenant_id,
+                        'uuid': incidente_uuid
+                    },
+                    UpdateExpression="SET PendienteReasignacion = :p",
+                    ExpressionAttributeValues={
+                        ':p': True
+                    },
+                    ReturnValues="UPDATED_NEW"
+                )
+
+                transmission_payload = {
+                    'action': 'AuthorityManageIncidents',
+                    'uuid': incidente_uuid,
+                    'status': 'reassignment_pending',
+                    'response': response.get('Attributes')
+                }
+                transmitir(event, transmission_payload)
+
+                return {
+                    'statusCode': 200,
+                    'body': json.dumps({'message': 'Incidente pendiente de reasignación por coordinador', 'updatedAttributes': response.get('Attributes')})
+                }
+
+            except Exception as e:
+                print(f"Error al actualizar: {e}")
+                return {'statusCode': 500, 'body': json.dumps('Error al actualizar el ítem')}
+        else: # (actionToDo == "Cerrar")
+            try:
+                response = table.update_item(
+                    Key={
+                        'tenant_id': incidente_tenant_id,
+                        'uuid': incidente_uuid
+                    },
+                    # --- CORRECCIÓN AQUÍ ---
+                    UpdateExpression="SET #s = :s", 
+                    ExpressionAttributeNames={
+                        '#s': 'Status'  # Alias para la palabra reservada 'Status'
+                    },
+                    ExpressionAttributeValues={
+                        ':s': 'Resuelto' # Tu lógica de negocio
+                    },
+                    ReturnValues="UPDATED_NEW"
+                )
+
+                transmission_payload = {
+                    'action': 'AuthorityManageIncidents',
+                    'uuid': incidente_uuid, # Esto ya está corregido
+                    'status': 'closed',
+                    'response': response.get('Attributes')
+                }
+                transmitir(event, transmission_payload)
+
+                return {
+                    'statusCode': 200,
+                    'body': json.dumps({'message': 'Incidente cerrado por coordinador', 'updatedAttributes': response.get('Attributes')})
+                }
+
+            except Exception as e:
+                print(f"Error al actualizar: {e}")
+                return {'statusCode': 500, 'body': json.dumps('Error al actualizar el ítem')}
+
+    except Exception as e:
+        print(f"Error en AuthorityManageIncidents: {e}")
+        return {
+            'statusCode': 500,
+            'body': json.dumps(f'Error al procesar: {str(e)}')
+        }
+
+    
