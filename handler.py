@@ -52,14 +52,17 @@ def _validate_token_and_get_user(token_str):
         print(f"Auth Exception: {e}")
         return None
 
-def transmitir(event, message_payload_dict):
+# Asumimos que estas variables globales están definidas:
+# dynamodb, CONNECTIONS_TABLE, USERS_TABLE
 
+def transmitir(event, message_payload_dict):
     try:
         connections_table = dynamodb.Table(CONNECTIONS_TABLE)
+        users_table = dynamodb.Table(USERS_TABLE)
     except Exception as e:
-        print(f"[Error Transmitir] No se pudo cargar CONNECTIONS_TABLE: {e}")
+        print(f"[Error Transmitir] No se pudieron cargar las tablas: {e}")
         return
-        
+    
     try:
         endpoint_url = f"https://{event['requestContext']['domainName']}/{event['requestContext']['stage']}"
         apigateway_client = boto3.client('apigatewaymanagementapi', endpoint_url=endpoint_url)
@@ -67,30 +70,63 @@ def transmitir(event, message_payload_dict):
         print(f"[Error Transmitir] El evento no tiene 'requestContext' para el endpoint_url.")
         return
 
+    incident_data = message_payload_dict.get('incident', {})
+    incident_responsible_areas = incident_data.get('ResponsibleArea', [])
+    incident_is_global = incident_data.get('IsGlobal', False)
+
+    is_deletion_message = not incident_data
+    
+    if not incident_data:
+        print("[Error Transmitir] No se encontró el objeto 'incident' en el payload.")
+        return
+
     try:
-        response = connections_table.scan(ProjectionExpression='connectionId')
+        response = connections_table.scan(ProjectionExpression='connectionId, #r, Area, CreatedById',
+                                          ExpressionAttributeNames={'#r': 'Role'})
         connections = response.get('Items', [])
     except Exception as e:
         print(f"[Error Transmitir] Fallo al escanear la tabla de conexiones: {e}")
-        return # No se puede continuar
+        return
 
-    print(f"Encontradas {len(connections)} conexiones para transmitir.")
+    print(f"Encontradas {len(connections)} conexiones para evaluar.")
     
     message_payload_str = json.dumps(message_payload_dict)
 
-    # 5. Iterar y enviar el mensaje
     for connection in connections:
         connection_id = connection['connectionId']
-        try:
-            apigateway_client.post_to_connection(
-                ConnectionId=connection_id,
-                Data=message_payload_str.encode('utf-8')
-            )
-        except apigateway_client.exceptions.GoneException:
-            print(f"[Info Transmitir] Conexión muerta {connection_id}. Limpiando.")
-            connections_table.delete_item(Key={'connectionId': connection_id})
-        except Exception as e:
-            print(f"[Error Transmitir] No se pudo enviar a {connection_id}: {e}")
+        user_role = connection.get('Role')
+        user_area = connection.get('Area')
+        
+        send_message = False
+
+        if is_deletion_message:
+            # Requisito: Solo enviar si el rol es AUTHORITY
+            if user_role == 'AUTHORITY':
+                send_message = True
+        else:
+
+            if user_role == 'AUTHORITY':
+                send_message = True
+                
+            elif user_role == 'PERSONAL' or user_role == 'COORDINATOR':
+                if user_area and user_area in incident_responsible_areas:
+                    send_message = True
+                    
+            elif user_role == 'COMMUNITY':
+                if incident_is_global is True:
+                    send_message = True
+        
+        if send_message:
+            try:
+                apigateway_client.post_to_connection(
+                    ConnectionId=connection_id,
+                    Data=message_payload_str.encode('utf-8')
+                )
+            except apigateway_client.exceptions.GoneException:
+                print(f"[Info Transmitir] Conexión muerta {connection_id}. Limpiando.")
+                connections_table.delete_item(Key={'connectionId': connection_id})
+            except Exception as e:
+                print(f"[Error Transmitir] No se pudo enviar a {connection_id}: {e}")
 
 def connection_manager(event, context):
     connection_id = event['requestContext']['connectionId']
@@ -238,7 +274,7 @@ def lambda_handler(event, context):
         response = table.put_item(Item=incidente)
 
         transmission_payload = {
-            'action': 'NewIncident', # Usamos una acción diferente para el cliente
+            'action': 'NewIncident',
             'incident': incidente
         }
         transmitir(event, transmission_payload)
@@ -495,7 +531,7 @@ def StaffChooseIncident(event, context):
                 'action': 'StaffChooseIncident',
                 'uuid': incident_uuid,
                 'actionToDo': 'assigned',
-                'response': response.get('Attributes')
+                'incident': response.get('Attributes')
             }
             transmitir(event, transmission_payload)
 
@@ -809,7 +845,7 @@ def AuthorityManageIncidents(event,context):
         return {'statusCode': 403, 'body': json.dumps('Conexión no autorizada. Reconecte.')}
     
     user_role = conn_resp['Item'].get('Role')
-    
+
     if (user_role != 'COORDINATOR'):
         return {'statusCode': 403, 'body': json.dumps('Acceso denegado. Solo COORDINATOR puede cerrar incidentes.')}
 
