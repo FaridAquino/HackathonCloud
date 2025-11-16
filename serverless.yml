@@ -1,0 +1,69 @@
+org: faridaquino
+service: api-hackathon-websocket
+provider:
+  name: aws
+  runtime: python3.12
+  region: us-east-1
+  iam:
+    role: arn:aws:iam::551642315125:role:LabRole
+  websocketsApiName: mi-api-websocket
+  websocketsApiRouteSelectionExpression: $request.body.action
+
+  environment:
+    DYNAMO_TABLE: ${self:custom.incidentTable}
+    CONNECTIONS_TABLE: ${self:custom.connectionsTable}
+
+custom:
+  incidentTable: Incidents
+  connectionsTable: Connections
+
+functions:
+  publishIncident:
+    handler: handler.lambda_handler
+    events:
+      - websocket:
+          route: PublishIncident 
+
+  connectionHandler:
+    handler: handler.connection_manager 
+    events:
+      - websocket:
+          route: $connect
+      - websocket:
+          route: $disconnect
+
+  defaultHandler:
+    handler: handler.default_handler
+    events:
+      - websocket: $default
+
+resources:
+  Resources:
+    
+    IncidentesTable:
+      Type: AWS::DynamoDB::Table
+      Properties:
+        TableName: ${self:custom.incidentTable}
+        AttributeDefinitions:
+          - AttributeName: tenant_id
+            AttributeType: S
+          - AttributeName: uuid
+            AttributeType: S
+        KeySchema:
+          - AttributeName: tenant_id
+            KeyType: HASH
+          - AttributeName: uuid
+            KeyType: RANGE
+        BillingMode: PAY_PER_REQUEST
+
+    ConnectionsTable:
+      Type: AWS::DynamoDB::Table
+      Properties:
+        TableName: ${self:custom.connectionsTable}
+        AttributeDefinitions:
+          - AttributeName: connectionId
+            AttributeType: S
+        KeySchema:
+          - AttributeName: connectionId
+            KeyType: HASH
+        BillingMode: PAY_PER_REQUEST
