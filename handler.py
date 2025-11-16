@@ -122,7 +122,7 @@ def connection_manager(event, context):
                 'CreatedById': user['UUID'],
                 'Role': user['Role'],
                 'Area': user.get('Area', None),
-                'connectTime': datetime.now().isoformat()
+                'connectTime': datetime.now(timezone.utc).isoformat()
             }
 
             table.put_item(Item=item)
@@ -646,3 +646,4 @@ def CoordinatorAssignIncident(event,context):
             'statusCode': 500,
             'body': json.dumps(f'Error al procesar: {str(e)}')
         }
+
