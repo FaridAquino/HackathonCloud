@@ -167,8 +167,9 @@ def lambda_handler(event, context):
             
     user_role = conn_resp['Item'].get('Role')
 
-    if (user_role != 'Comunidad'):
-        return {'statusCode': 403, 'body': json.dumps('Acceso denegado. Solo Comunidad puede crear incidentes.')}
+    if (user_role != 'COMMUNITY'):
+        print("Acceso denegado: Solo COMMUNITY puede crear incidentes.")
+        return {'statusCode': 403, 'body': json.dumps('Acceso denegado. Solo COMMUNITY puede crear incidentes.')}
     
     try:
         body = json.loads(event.get('body', '{}'))
@@ -265,10 +266,10 @@ def EditIncidentContent(event, context):
     user_role = conn_resp['Item'].get('Role')
     CreatedById= conn_resp['Item'].get('CreatedById')
 
-    if (user_role != 'Comunidad' and user_role!='Coordinadores'):
-        return {'statusCode': 403, 'body': json.dumps('Acceso denegado. Solo Comunidad o coordinadores puede editar o eliminar incidentes.')}
+    if (user_role != 'COMMUNITY' and user_role!='COORDINATOR'):
+        return {'statusCode': 403, 'body': json.dumps('Acceso denegado. Solo COMMUNITY o COORDINATOR puede editar o eliminar incidentes.')}
 
-    if (user_role=='Comunidad'):
+    if (user_role=='COMMUNITY'):
         try:
             body = json.loads(event.get('body', '{}'))
 
@@ -309,7 +310,8 @@ def EditIncidentContent(event, context):
                     transmission_payload = {
                         'action': 'EditIncidentContent',
                         'uuid': uuid,
-                        'status': 'assigned'
+                        'actionToDo': 'editedIncident',
+                        'incident':response.get('Attributes')
                     }
                     transmitir(event, transmission_payload)
 
@@ -340,6 +342,7 @@ def EditIncidentContent(event, context):
                     transmission_payload = {
                         'action': 'IncidentDeleted',
                         'tenant_id': tenant_id,
+                        'actionToDo': 'deletedIncident',
                         'uuid': uuid
                     }
                     transmitir(event, transmission_payload)
@@ -363,7 +366,7 @@ def EditIncidentContent(event, context):
                 }
 
         except Exception as e:
-            print(f"Error en EditIncidentContent para comunidad: {e}")
+            print(f"Error en EditIncidentContent para COMMUNITY: {e}")
             return {
                 'statusCode': 500,
                 'body': json.dumps(f'Error al procesar: {str(e)}')
@@ -378,7 +381,7 @@ def EditIncidentContent(event, context):
             if (actionToDo != "AjustarUrgencia"):
                 return {
                     'statusCode': 400,
-                    'body': json.dumps(f'Acción no permitida para coordinadores: {actionToDo}')
+                    'body': json.dumps(f'Acción no permitida para COORDINATOR: {actionToDo}')
                 }
             new_priority = body.get("new_priority")
             if not new_priority:
@@ -400,7 +403,8 @@ def EditIncidentContent(event, context):
                 transmission_payload = {
                     'action': 'EditIncidentContent',
                     'uuid': uuid,
-                    'status': 'priority_updated'
+                    'status': 'priorityUpdated',
+                    'incident': response.get('Attributes')
                 }
                 transmitir(event, transmission_payload)
 
@@ -413,7 +417,7 @@ def EditIncidentContent(event, context):
                 return {'statusCode': 500, 'body': json.dumps('Error al actualizar el ítem')}
             
         except Exception as e:
-            print(f"Error en EditIncidentContent para coordinadores: {e}")
+            print(f"Error en EditIncidentContent para COORDINATOR: {e}")
             return {
                 'statusCode': 500,
                 'body': json.dumps(f'Error al procesar: {str(e)}')
@@ -432,15 +436,18 @@ def StaffChooseIncident(event, context):
     area= conn_resp['Item'].get('Area')
     personal_uuid = conn_resp['Item'].get('CreatedById')
 
-    if (user_role != 'Personal' ):
-        return {'statusCode': 403, 'body': json.dumps('Acceso denegado. Solo Personal puede asignarse incidentes.')}
+    if (user_role != 'PERSONAL' ):
+        print("Acceso denegado: Solo PERSONAL puede asignarse incidentes.")
+        return {'statusCode': 403, 'body': json.dumps('Acceso denegado. Solo PERSONAL puede asignarse incidentes.')}
     if not area:
-        return {'statusCode': 403, 'body': json.dumps('Acceso denegado. Área no definida para el personal.')}
+        print("Acceso denegado: Área no definida para el PERSONAL.")
+        return {'statusCode': 403, 'body': json.dumps('Acceso denegado. Área no definida para el PERSONAL.')}
 
     try:
         body = json.loads(event.get('body', '{}'))
         if (body['Area'] != area):
-            return {'statusCode': 403, 'body': json.dumps('Acceso denegado. El área no coincide con el área del personal.')}
+            print("Acceso denegado: El área no coincide con el área del PERSONAL.")
+            return {'statusCode': 403, 'body': json.dumps('Acceso denegado. El área no coincide con el área del PERSONAL.')}
         
         tenant_id = body['tenant_id']
         incident_uuid = body['uuid']
@@ -463,12 +470,12 @@ def StaffChooseIncident(event, context):
             )
             new_task = [{
                 'tenant_id': tenant_id,
-                'uuid': uuid
+                'uuid': incident_uuid
             }]
 
             response2 = users_table.update_item(
                 Key={
-                    'Role': 'Personal',
+                    'Role': 'PERSONAL',
                     'UUID': personal_uuid
                 },
                 UpdateExpression="SET #tl = list_append(if_not_exists(#tl, :empty_list), :ia)",
@@ -486,15 +493,15 @@ def StaffChooseIncident(event, context):
 
             transmission_payload = {
                 'action': 'StaffChooseIncident',
-                'uuid': uuid,
-                'status': 'assigned',
+                'uuid': incident_uuid,
+                'actionToDo': 'assigned',
                 'response': response.get('Attributes')
             }
             transmitir(event, transmission_payload)
 
             return {
                 'statusCode': 200,
-                'body': json.dumps({'message': 'Incidente asignado al personal', 'updatedAttributes': response.get('Attributes'), 'userUpdate': response2.get('Attributes')})
+                'body': json.dumps({'message': 'Incidente asignado al PERSONAL', 'updatedAttributes': response.get('Attributes'), 'userUpdate': response2.get('Attributes')})
             }
 
         except Exception as e:
@@ -518,8 +525,9 @@ def CoordinatorAssignIncident(event,context):
     
     user_role = conn_resp['Item'].get('Role')
 
-    if (user_role != 'Coordinadores'):
-        return {'statusCode': 403, 'body': json.dumps('Acceso denegado. Solo Coordinadores puede asignar o escribir comentarios en los incidentes.')}
+    if (user_role != 'COORDINATOR'):
+        print("Acceso denegado: Solo COORDINATOR puede asignar o escribir comentarios en los incidentes.")
+        return {'statusCode': 403, 'body': json.dumps('Acceso denegado. Solo COORDINATOR puede asignar o escribir comentarios en los incidentes.')}
 
     try:
         body = json.loads(event.get('body', '{}'))
@@ -533,7 +541,7 @@ def CoordinatorAssignIncident(event,context):
         if (actionToDo!= "Asignar" and actionToDo!="EscribirComentario"):
             return {
                 'statusCode': 400,
-                'body': json.dumps(f'Acción no permitida para coordinadores: {actionToDo}')
+                'body': json.dumps(f'Acción no permitida para COORDINATOR: {actionToDo}')
             }
         
         if (actionToDo == "Asignar"):
@@ -553,21 +561,14 @@ def CoordinatorAssignIncident(event,context):
                     ReturnValues="UPDATED_NEW"
                 )
 
-                transmission_payload = {
-                    'action': 'CoordinatorAssignIncident',
-                    'uuid': uuid,
-                    'status': 'assigned',
-                    'response': response.get('Attributes')
-                }
-
                 new_task = [{
                     'tenant_id': tenant_id,
-                    'uuid': uuid
+                    'uuid': incident_uuid
                 }]
 
                 response2 = user_table.update_item(
                     Key={
-                        'Role': 'Personal',
+                        'Role': 'PERSONAL',
                         'UUID': assigned_to_id
                     },
                     UpdateExpression="SET #tl = list_append(if_not_exists(#tl, :empty_list), :ia)",
@@ -580,6 +581,14 @@ def CoordinatorAssignIncident(event,context):
                     },
                     ReturnValues="UPDATED_NEW"
                 )
+
+                transmission_payload = {
+                    'action': 'CoordinatorAssignIncident',
+                    'uuid': incident_uuid,
+                    'actionToDo': 'assignedIncident',
+                    'incident': response.get('Attributes'),
+                    'user': response2.get('Attributes')
+                }
 
                 transmitir(event, transmission_payload)
 
@@ -601,7 +610,7 @@ def CoordinatorAssignIncident(event,context):
                 new_comment_list = [{
                     'Date': datetime.now().strftime("%Y-%m-%dT%H:%M:%S"),
                     'Comment': new_comment,
-                    'Role': 'Coordinadores',
+                    'Role': 'COORDINATOR',
                     'UserId': conn_resp['Item'].get('CreatedById')
                 }]
 
@@ -624,9 +633,9 @@ def CoordinatorAssignIncident(event,context):
 
                 transmission_payload = {
                     'action': 'CoordinatorAssignIncident',
-                    'uuid': uuid,
+                    'uuid': incident_uuid,
                     'status': 'comment_added',
-                    'response': response.get('Attributes')
+                    'incident': response.get('Attributes')
                 }
 
                 transmitir(event, transmission_payload)
@@ -660,8 +669,8 @@ def SolvedIncident(event, context):
     user_role = conn_resp['Item'].get('Role')
     personal_uuid = conn_resp['Item'].get('CreatedById') # (Este es el UUID del usuario conectado)
 
-    if (user_role != 'Personal' and user_role != 'Coordinadores'):
-        return {'statusCode': 403, 'body': json.dumps('Acceso denegado. Solo Personal o Coordinadores puede resolver incidentes.')}
+    if (user_role != 'PERSONAL' and user_role != 'COORDINATOR'):
+        return {'statusCode': 403, 'body': json.dumps('Acceso denegado. Solo Personal o COORDINATOR puede resolver incidentes.')}
     
     try:
         body = json.loads(event.get('body', '{}'))
@@ -675,7 +684,7 @@ def SolvedIncident(event, context):
         print(f"Error al parsear body: {e}")
         return {'statusCode': 400, 'body': json.dumps(f'Body mal formado: {str(e)}')}
 
-    if (user_role == 'Personal'):
+    if (user_role == 'PERSONAL'):
         try:
             response = table.update_item(
                 Key={
@@ -698,7 +707,7 @@ def SolvedIncident(event, context):
             try:
                 user_data = users_table.get_item(
                     Key={
-                        'Role': 'Personal',
+                        'Role': 'PERSONAL',
                         'UUID': personal_uuid
                     }
                 )
@@ -713,7 +722,7 @@ def SolvedIncident(event, context):
                     
                     response2 = users_table.update_item(
                         Key={
-                            'Role': 'Personal',
+                            'Role': 'PERSONAL',
                             'UUID': personal_uuid
                         },
                         UpdateExpression="SET #tl = :nl",
@@ -723,14 +732,14 @@ def SolvedIncident(event, context):
                     )
 
             except Exception as e:
-                print(f"Error al actualizar la ToList del personal: {e}")
+                print(f"Error al actualizar la ToList del PERSONAL: {e}")
 
             transmission_payload = {
                 'action': 'EditIncidentContent',
                 'uuid': incidente_uuid,
                 'status': 'SolvedIncident',
-                'response': response.get('Attributes'),
-                'response2': response2.get('Attributes') if response2 else None
+                'incident': response.get('Attributes'),
+                'user': response2.get('Attributes') if response2 else None
             }
             transmitir(event, transmission_payload)
 
@@ -744,7 +753,7 @@ def SolvedIncident(event, context):
             }
 
         except Exception as e:
-            print(f"Error en SolvedIncident para personal: {e}")
+            print(f"Error en SolvedIncident para PERSONAL: {e}")
             return {'statusCode': 500, 'body': json.dumps(f'Error al procesar: {str(e)}')}
 
     else:
@@ -756,7 +765,7 @@ def SolvedIncident(event, context):
             new_comment_list = [{
                 'Date': datetime.now(timezone.utc).isoformat(),
                 'Comment': new_comment,
-                'Role': 'Coordinadores',
+                'Role': 'COORDINATOR',
                 'UserId': conn_resp['Item'].get('CreatedById')
             }]
 
@@ -778,7 +787,7 @@ def SolvedIncident(event, context):
                 'action': 'EditIncidentContent',
                 'uuid': incidente_uuid,
                 'status': 'SolvedIncident',
-                'response': response.get('Attributes')
+                'incident': response.get('Attributes')
             }
             transmitir(event, transmission_payload)
 
@@ -788,7 +797,7 @@ def SolvedIncident(event, context):
             }
 
         except Exception as e:
-            print(f"Error en SolvedIncident para coordinadores: {e}")
+            print(f"Error en SolvedIncident para COORDINATOR: {e}")
             return {'statusCode': 500, 'body': json.dumps(f'Error al procesar: {str(e)}')}
 
 def AuthorityManageIncidents(event,context):
@@ -800,10 +809,9 @@ def AuthorityManageIncidents(event,context):
         return {'statusCode': 403, 'body': json.dumps('Conexión no autorizada. Reconecte.')}
     
     user_role = conn_resp['Item'].get('Role')
-    usuario_uuid = conn_resp['Item'].get('CreatedById')
-
-    if (user_role != 'Coordinadores'):
-        return {'statusCode': 403, 'body': json.dumps('Acceso denegado. Solo Coordinadores puede cerrar incidentes.')}
+    
+    if (user_role != 'COORDINATOR'):
+        return {'statusCode': 403, 'body': json.dumps('Acceso denegado. Solo COORDINATOR puede cerrar incidentes.')}
 
     try:
         body = json.loads(event.get('body', '{}'))
@@ -815,7 +823,7 @@ def AuthorityManageIncidents(event,context):
         if (actionToDo!= "Reasignar" and actionToDo!="Cerrar"):
             return {
                 'statusCode': 400,
-                'body': json.dumps(f'Acción no permitida para Coordinadores: {actionToDo}')
+                'body': json.dumps(f'Acción no permitida para COORDINATOR: {actionToDo}')
             }
         
         if (actionToDo == "Reasignar"):
@@ -835,8 +843,8 @@ def AuthorityManageIncidents(event,context):
                 transmission_payload = {
                     'action': 'AuthorityManageIncidents',
                     'uuid': incidente_uuid,
-                    'status': 'reassignment_pending',
-                    'response': response.get('Attributes')
+                    'actionToDo': 'ReassignmentPending',
+                    'incident': response.get('Attributes')
                 }
                 transmitir(event, transmission_payload)
 
@@ -848,36 +856,31 @@ def AuthorityManageIncidents(event,context):
             except Exception as e:
                 print(f"Error al actualizar: {e}")
                 return {'statusCode': 500, 'body': json.dumps('Error al actualizar el ítem')}
-        else: # (actionToDo == "Cerrar")
+        else:
             try:
                 response = table.update_item(
                     Key={
                         'tenant_id': incidente_tenant_id,
                         'uuid': incidente_uuid
                     },
-                    # --- CORRECCIÓN AQUÍ ---
-                    UpdateExpression="SET #s = :s", 
+                    UpdateExpression="SET #s = :s, #ra = :ra", 
                     ExpressionAttributeNames={
-                        '#s': 'Status'  # Alias para la palabra reservada 'Status'
+                        '#s': 'Status',
+                        '#ra': 'ResolvedAt' 
                     },
                     ExpressionAttributeValues={
-                        ':s': 'Resuelto' # Tu lógica de negocio
+                        ':s': 'Resuelto',
+                        ':ra': datetime.now(timezone.utc).isoformat() 
                     },
                     ReturnValues="UPDATED_NEW"
                 )
-
                 transmission_payload = {
                     'action': 'AuthorityManageIncidents',
-                    'uuid': incidente_uuid, # Esto ya está corregido
-                    'status': 'closed',
-                    'response': response.get('Attributes')
+                    'uuid': incidente_uuid,
+                    'actionToDo': 'ClosedIncident',
+                    'incident': response.get('Attributes')
                 }
                 transmitir(event, transmission_payload)
-
-                return {
-                    'statusCode': 200,
-                    'body': json.dumps({'message': 'Incidente cerrado por coordinador', 'updatedAttributes': response.get('Attributes')})
-                }
 
             except Exception as e:
                 print(f"Error al actualizar: {e}")
@@ -890,4 +893,3 @@ def AuthorityManageIncidents(event,context):
             'body': json.dumps(f'Error al procesar: {str(e)}')
         }
 
-    
