@@ -112,6 +112,13 @@ functions:
       - httpApi:
           path: /incidents
           method: get
+  
+  assignRoleArea:
+    handler: assign_role_area.lambda_handler
+    events:
+      - httpApi:
+          path: /users/assign-role-area
+          method: put
 
 resources:
   Resources:
