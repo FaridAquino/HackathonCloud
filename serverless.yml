@@ -9,7 +9,7 @@ provider:
   stage: dev
   
   iam:
-    role: arn:aws:iam::144544776231:role/LabRole
+    role: arn:aws:iam::885475026169:role/LabRole
   
   httpApi:
     cors: true
