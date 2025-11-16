@@ -22,7 +22,12 @@ functions:
     handler: handler.lambda_handler
     events:
       - websocket:
-          route: PublishIncident 
+          route: PublishIncident
+  assignIncident:
+    handler: handler.EditIncidentContent
+    events:
+      - websocket:
+          route: EditIncidentContent
 
   connectionHandler:
     handler: handler.connection_manager 
