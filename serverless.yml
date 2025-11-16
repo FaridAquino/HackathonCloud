@@ -1,33 +1,57 @@
 org: faridaquino
 service: api-hackathon-websocket
+
 provider:
   name: aws
   runtime: python3.12
+  timeout: 30
   region: us-east-1
+  stage: dev
+  
   iam:
     role: arn:aws:iam::144544776231:role/LabRole
+  
+  httpApi:
+    cors: true
+
   websocketsApiName: mi-api-websocket
   websocketsApiRouteSelectionExpression: $request.body.action
 
   environment:
     DYNAMO_TABLE: ${self:custom.incidentTable}
     CONNECTIONS_TABLE: ${self:custom.connectionsTable}
+    USERS_TABLE: ${self:service}-users-${sls:stage}
+    TOKENS_TABLE: ${self:service}-tokens-${sls:stage}
 
 custom:
   incidentTable: Incidents
   connectionsTable: Connections
 
 functions:
+
   publishIncident:
     handler: handler.lambda_handler
     events:
       - websocket:
           route: PublishIncident
-  assignIncident:
+          
+  editIncident:
     handler: handler.EditIncidentContent
     events:
       - websocket:
           route: EditIncidentContent
+          
+  staffChooseIncident:
+    handler: handler.StaffChooseIncident
+    events:
+      - websocket:
+          route: StaffChooseIncident
+
+  coordinatorAssignIncident:
+    handler: handler.CoordinatorAssignIncident
+    events:
+      - websocket:
+          route: CoordinatorAssignIncident
 
   connectionHandler:
     handler: handler.connection_manager 
@@ -41,6 +65,41 @@ functions:
     handler: handler.default_handler
     events:
       - websocket: $default
+
+  crearUsuario:
+    handler: crear_usuario.lambda_handler
+    events:
+      - httpApi:
+          path: /users
+          method: post
+
+  obtenerUsuario:
+    handler: obtener_usuario.lambda_handler
+    events:
+      - httpApi:
+          path: /users
+          method: get
+
+  validarTokenAcceso:
+    handler: validar_token_acceso.lambda_handler
+    events:
+      - httpApi:
+          path: /token/validate
+          method: post
+
+  loginUsuario:
+    handler: login_usuario.lambda_handler
+    events:
+      - httpApi:
+          path: /login
+          method: post
+
+  getIncidents:
+    handler: obtener_incidentes.lambda_handler
+    events:
+      - httpApi:
+          path: /incidents
+          method: get
 
 resources:
   Resources:
@@ -72,3 +131,31 @@ resources:
           - AttributeName: connectionId
             KeyType: HASH
         BillingMode: PAY_PER_REQUEST
+
+    UsersTable:
+      Type: AWS::DynamoDB::Table
+      Properties:
+        TableName: ${self:service}-users-${sls:stage}
+        BillingMode: PAY_PER_REQUEST
+        AttributeDefinitions:
+          - AttributeName: Role
+            AttributeType: S
+          - AttributeName: UUID
+            AttributeType: S
+        KeySchema:
+          - AttributeName: Role
+            KeyType: HASH
+          - AttributeName: UUID
+            KeyType: RANGE
+
+    TokensTable:
+      Type: AWS::DynamoDB::Table
+      Properties:
+        TableName: ${self:service}-tokens-${sls:stage}
+        BillingMode: PAY_PER_REQUEST
+        AttributeDefinitions:
+          - AttributeName: Token
+            AttributeType: S
+        KeySchema:
+          - AttributeName: Token
+            KeyType: HASH
