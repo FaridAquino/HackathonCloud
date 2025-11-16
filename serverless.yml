@@ -5,7 +5,7 @@ provider:
   runtime: python3.12
   region: us-east-1
   iam:
-    role: arn:aws:iam::551642315125:role:LabRole
+    role: arn:aws:iam::144544776231:role:LabRole
   websocketsApiName: mi-api-websocket
   websocketsApiRouteSelectionExpression: $request.body.action
 
