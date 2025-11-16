@@ -4,7 +4,7 @@ service: api-hackathon-websocket
 provider:
   name: aws
   runtime: python3.12
-  timeout: 30
+  timeout: 29
   region: us-east-1
   stage: dev
   
@@ -52,6 +52,18 @@ functions:
     events:
       - websocket:
           route: CoordinatorAssignIncident
+
+  solvedIncident:
+    handler: handler.SolvedIncident
+    events:
+      - websocket:
+          route: SolvedIncident
+
+  authorityManageIncidents:
+    handler: handler.AuthorityManageIncidents
+    events:
+      - websocket:
+          route: AuthorityManageIncidents
 
   connectionHandler:
     handler: handler.connection_manager 
