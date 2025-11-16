@@ -23,12 +23,19 @@ def _validate_token_and_get_user(token_str):
         
         token_item = token_resp["Item"]
         
-        expires_at = datetime.fromisoformat(token_item.get("ExpiresAt"))
-
-        if datetime.now(timezone.utc) > expires_at:
-            print("Auth Error: Token expirado")
+        expires_at_str = token_item.get("ExpiresAt")
+        if not expires_at_str:
+            print("Auth Error: Token no tiene ExpiresAt")
             return None
-            
+
+        expires_at_naive = datetime.fromisoformat(expires_at_str)
+
+        expires_at_aware = expires_at_naive.replace(tzinfo=timezone.utc)
+
+        if datetime.now(timezone.utc) > expires_at_aware:
+            print(f"Auth Error: Token expirado. Expiró: {expires_at_aware}, Ahora: {datetime.now(timezone.utc)}")
+            return None
+        
         role = token_item["Role"]
         uuid = token_item["UUID"]
         user_resp = users_table_client.get_item(Key={"Role": role, "UUID": uuid})
