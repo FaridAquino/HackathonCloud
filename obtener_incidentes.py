@@ -121,12 +121,12 @@ def lambda_handler(event, context):
 
         elif role == "COORDINATOR":
             # 2. coordinador ve incidentes de su área
-            filter_expr = Attr("ResponsibleArea").eq(user_area)
+            filter_expr = Attr("ResponsibleArea").contains(user_area)
 
         elif role == "PERSONAL":
             # 5. personal ve incidentes de su área o asignados a su nombre
             filter_expr = (
-                Attr("ResponsibleArea").eq(user_area)
+                Attr("ResponsibleArea").contains(user_area)
                 | Attr("AssignedToPersonalId").eq(user_id)
             )
 
@@ -147,7 +147,7 @@ def lambda_handler(event, context):
             filter_expr = add_condition(filter_expr, Attr("Type").eq(type_filter))
 
         if area_filter:
-            filter_expr = add_condition(filter_expr, Attr("ResponsibleArea").eq(area_filter))
+            filter_expr = add_condition(filter_expr, Attr("ResponsibleArea").contains(area_filter))
 
         if global_param:
             bool_global = global_param.lower() == "true"
