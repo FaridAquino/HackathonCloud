@@ -1,0 +1,161 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: 'Master Stack for AlertaUTEC Airflow on ECS - Orchestrates all infrastructure'
+
+Parameters:
+  ProjectName:
+    Type: String
+    Default: alerta-utec-airflow
+    Description: Project name used across all stacks
+
+  AirflowAdminPassword:
+    Type: String
+    NoEcho: true
+    Description: Airflow admin user password
+    MinLength: 8
+
+  DynamoDBTableName:
+    Type: String
+    Default: Incidents
+    Description: DynamoDB table name for incidents
+
+  ECRImageTag:
+    Type: String
+    Default: latest
+    Description: Docker image tag to deploy
+
+  TemplatesBucketName:
+    Type: String
+    Description: S3 bucket containing CloudFormation templates
+    Default: alerta-utec-cfn-templates
+
+Resources:
+  # 1. Network Stack (VPC, Subnets, Security Groups)
+  NetworkStack:
+    Type: AWS::CloudFormation::Stack
+    Properties:
+      TemplateURL: !Sub https://${TemplatesBucketName}.s3.${AWS::Region}.amazonaws.com/01-network.yaml
+      Parameters:
+        ProjectName: !Ref ProjectName
+      Tags:
+        - Key: Name
+          Value: !Sub ${ProjectName}-network
+
+  # 2. Storage Stack (RDS, S3) - COMMENTED OUT: Using SQLite instead of RDS
+  # StorageStack:
+  #   Type: AWS::CloudFormation::Stack
+  #   DependsOn: NetworkStack
+  #   Properties:
+  #     TemplateURL: !Sub https://${TemplatesBucketName}.s3.${AWS::Region}.amazonaws.com/02-storage.yaml
+  #     Parameters:
+  #       ProjectName: !Ref ProjectName
+  #       DBPassword: !Ref DBPassword
+  #     Tags:
+  #       - Key: Name
+  #         Value: !Sub ${ProjectName}-storage
+  
+  # S3 Bucket for logs (standalone - no RDS needed)
+  S3Bucket:
+    Type: AWS::S3::Bucket
+    Properties:
+      BucketName: !Sub ${ProjectName}-${AWS::AccountId}
+      VersioningConfiguration:
+        Status: Suspended
+      PublicAccessBlockConfiguration:
+        BlockPublicAcls: true
+        BlockPublicPolicy: true
+        IgnorePublicAcls: true
+        RestrictPublicBuckets: true
+      Tags:
+        - Key: Name
+          Value: !Sub ${ProjectName}-bucket
+
+  # 3. ECR Stack (Container Registry) - SKIPPED: Repository already exists
+  # ECRStack:
+  #   Type: AWS::CloudFormation::Stack
+  #   Properties:
+  #     TemplateURL: !Sub https://${TemplatesBucketName}.s3.${AWS::Region}.amazonaws.com/03-ecr.yaml
+  #     Parameters:
+  #       ProjectName: !Ref ProjectName
+  #     Tags:
+  #       - Key: Name
+  #         Value: !Sub ${ProjectName}-ecr
+
+  # 4. EFS Stack (Shared File System)
+  EFSStack:
+    Type: AWS::CloudFormation::Stack
+    DependsOn: NetworkStack
+    Properties:
+      TemplateURL: !Sub https://${TemplatesBucketName}.s3.${AWS::Region}.amazonaws.com/04-efs.yaml
+      Parameters:
+        ProjectName: !Ref ProjectName
+      Tags:
+        - Key: Name
+          Value: !Sub ${ProjectName}-efs
+
+  # 5. ECS Cluster Stack
+  ECSClusterStack:
+    Type: AWS::CloudFormation::Stack
+    Properties:
+      TemplateURL: !Sub https://${TemplatesBucketName}.s3.${AWS::Region}.amazonaws.com/05-ecs-cluster.yaml
+      Parameters:
+        ProjectName: !Ref ProjectName
+      Tags:
+        - Key: Name
+          Value: !Sub ${ProjectName}-ecs-cluster
+
+  # 6. ECS Services Stack (Webserver + Scheduler)
+  ECSServicesStack:
+    Type: AWS::CloudFormation::Stack
+    DependsOn:
+      - NetworkStack
+      - S3Bucket
+      - EFSStack
+      - ECSClusterStack
+    Properties:
+      TemplateURL: !Sub https://${TemplatesBucketName}.s3.${AWS::Region}.amazonaws.com/07-ecs-services.yaml
+      Parameters:
+        ProjectName: !Ref ProjectName
+        ECRImageTag: !Ref ECRImageTag
+        DynamoDBTableName: !Ref DynamoDBTableName
+        AirflowAdminPassword: !Ref AirflowAdminPassword
+        S3BucketArn: !GetAtt S3Bucket.Arn
+      Tags:
+        - Key: Name
+          Value: !Sub ${ProjectName}-ecs-services
+
+Outputs:
+  WebserverAccessInstructions:
+    Description: How to access Airflow Web UI
+    Value: !GetAtt ECSServicesStack.Outputs.WebserverAccessNote
+
+  ECRRepositoryUri:
+    Description: ECR Repository URI for Docker images (pre-existing)
+    Value: 858624593089.dkr.ecr.us-east-1.amazonaws.com/alerta-utec-airflow
+
+  ECSClusterName:
+    Description: ECS Cluster Name
+    Value: !GetAtt ECSClusterStack.Outputs.ECSClusterName
+
+  DatabaseType:
+    Description: Database backend being used
+    Value: SQLite (stored in EFS /logs/airflow.db)
+
+  S3BucketName:
+    Description: S3 Bucket for logs and backups
+    Value: !Ref S3Bucket
+  
+  S3BucketArn:
+    Description: S3 Bucket ARN
+    Value: !GetAtt S3Bucket.Arn
+
+  EFSFileSystemId:
+    Description: EFS File System ID
+    Value: !GetAtt EFSStack.Outputs.EFSFileSystemId
+
+  WebserverServiceName:
+    Description: ECS Webserver Service Name
+    Value: !GetAtt ECSServicesStack.Outputs.WebserverServiceName
+
+  SchedulerServiceName:
+    Description: ECS Scheduler Service Name
+    Value: !GetAtt ECSServicesStack.Outputs.SchedulerServiceName

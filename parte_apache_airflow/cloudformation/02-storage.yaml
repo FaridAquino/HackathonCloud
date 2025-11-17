@@ -1,0 +1,151 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: 'Storage layer for AlertaUTEC Airflow - RDS PostgreSQL + S3 (COST OPTIMIZED)'
+
+Parameters:
+  ProjectName:
+    Type: String
+    Default: alerta-utec-airflow
+    Description: Project name for resource naming
+
+  DBUsername:
+    Type: String
+    Default: airflow_admin
+    Description: Database admin username
+    NoEcho: false
+
+  DBPassword:
+    Type: String
+    NoEcho: true
+    Description: Database admin password (min 8 characters)
+    MinLength: 8
+
+Resources:
+  # S3 Bucket for logs and backups
+  AirflowS3Bucket:
+    Type: AWS::S3::Bucket
+    Properties:
+      BucketName: !Sub ${ProjectName}-${AWS::AccountId}
+      VersioningConfiguration:
+        Status: Suspended
+      LifecycleConfiguration:
+        Rules:
+          - Id: DeleteOldLogs
+            Status: Enabled
+            ExpirationInDays: 7
+            Prefix: logs/
+          - Id: CleanupIncompleteUploads
+            Status: Enabled
+            AbortIncompleteMultipartUpload:
+              DaysAfterInitiation: 1
+      PublicAccessBlockConfiguration:
+        BlockPublicAcls: true
+        BlockPublicPolicy: true
+        IgnorePublicAcls: true
+        RestrictPublicBuckets: true
+      Tags:
+        - Key: Name
+          Value: !Sub ${ProjectName}-bucket
+
+  # RDS PostgreSQL - MINIMAL CONFIGURATION FOR COST SAVINGS
+  AirflowDatabase:
+    Type: AWS::RDS::DBInstance
+    DeletionPolicy: Delete
+    Properties:
+      DBInstanceIdentifier: !Sub ${ProjectName}-db
+      DBInstanceClass: db.t3.micro  # 1 vCPU, 1 GB RAM
+      Engine: postgres
+      EngineVersion: '14.10'
+      MasterUsername: !Ref DBUsername
+      MasterUserPassword: !Ref DBPassword
+      DBName: airflow
+      AllocatedStorage: 20
+      StorageType: gp2
+      StorageEncrypted: false  # Disabled for cost savings
+      MultiAZ: false  # Single-AZ only
+      PubliclyAccessible: false
+      DBSubnetGroupName: !ImportValue 
+        Fn::Sub: ${ProjectName}-DBSubnetGroupName
+      VPCSecurityGroups:
+        - !ImportValue 
+            Fn::Sub: ${ProjectName}-RDSSecurityGroupId
+      BackupRetentionPeriod: 0  # No backups for cost savings
+      DeleteAutomatedBackups: true
+      EnableCloudwatchLogsExports: []
+      AutoMinorVersionUpgrade: false
+      Tags:
+        - Key: Name
+          Value: !Sub ${ProjectName}-db
+        - Key: Environment
+          Value: hackathon
+
+  # SSM Parameters for secure credential storage
+  DBHostParameter:
+    Type: AWS::SSM::Parameter
+    Properties:
+      Name: !Sub /${ProjectName}/db/host
+      Type: String
+      Value: !GetAtt AirflowDatabase.Endpoint.Address
+      Description: Database host endpoint
+
+  DBPortParameter:
+    Type: AWS::SSM::Parameter
+    Properties:
+      Name: !Sub /${ProjectName}/db/port
+      Type: String
+      Value: !GetAtt AirflowDatabase.Endpoint.Port
+      Description: Database port
+
+  DBNameParameter:
+    Type: AWS::SSM::Parameter
+    Properties:
+      Name: !Sub /${ProjectName}/db/name
+      Type: String
+      Value: airflow
+      Description: Database name
+
+  DBUsernameParameter:
+    Type: AWS::SSM::Parameter
+    Properties:
+      Name: !Sub /${ProjectName}/db/username
+      Type: String
+      Value: !Ref DBUsername
+      Description: Database username
+
+  DBPasswordParameter:
+    Type: AWS::SSM::Parameter
+    Properties:
+      Name: !Sub /${ProjectName}/db/password
+      Type: String
+      Value: !Ref DBPassword
+      Description: Database password
+
+Outputs:
+  S3BucketName:
+    Description: S3 Bucket for Airflow logs
+    Value: !Ref AirflowS3Bucket
+    Export:
+      Name: !Sub ${ProjectName}-S3Bucket
+
+  S3BucketArn:
+    Description: S3 Bucket ARN
+    Value: !GetAtt AirflowS3Bucket.Arn
+    Export:
+      Name: !Sub ${ProjectName}-S3BucketArn
+
+  DBEndpoint:
+    Description: RDS PostgreSQL Endpoint
+    Value: !GetAtt AirflowDatabase.Endpoint.Address
+    Export:
+      Name: !Sub ${ProjectName}-DBEndpoint
+
+  DBPort:
+    Description: RDS PostgreSQL Port
+    Value: !GetAtt AirflowDatabase.Endpoint.Port
+    Export:
+      Name: !Sub ${ProjectName}-DBPort
+
+  DBName:
+    Description: Database Name
+    Value: airflow
+    Export:
+      Name: !Sub ${ProjectName}-DBName

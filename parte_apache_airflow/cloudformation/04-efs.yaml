@@ -1,0 +1,98 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: 'EFS File System for AlertaUTEC Airflow DAGs (shared between ECS tasks)'
+
+Parameters:
+  ProjectName:
+    Type: String
+    Default: alerta-utec-airflow
+    Description: Project name for resource naming
+
+Resources:
+  # EFS File System
+  AirflowEFSFileSystem:
+    Type: AWS::EFS::FileSystem
+    Properties:
+      Encrypted: false  # Disabled for cost savings
+      PerformanceMode: generalPurpose
+      ThroughputMode: bursting  # Most cost-effective
+      LifecyclePolicies:
+        - TransitionToIA: AFTER_7_DAYS  # Move to infrequent access after 7 days
+      FileSystemTags:
+        - Key: Name
+          Value: !Sub ${ProjectName}-efs
+
+  # EFS Mount Targets (one per AZ)
+  EFSMountTarget1:
+    Type: AWS::EFS::MountTarget
+    Properties:
+      FileSystemId: !Ref AirflowEFSFileSystem
+      SubnetId: !ImportValue 
+        Fn::Sub: ${ProjectName}-PrivateSubnet1Id
+      SecurityGroups:
+        - !ImportValue 
+            Fn::Sub: ${ProjectName}-EFSSecurityGroupId
+
+  EFSMountTarget2:
+    Type: AWS::EFS::MountTarget
+    Properties:
+      FileSystemId: !Ref AirflowEFSFileSystem
+      SubnetId: !ImportValue 
+        Fn::Sub: ${ProjectName}-PrivateSubnet2Id
+      SecurityGroups:
+        - !ImportValue 
+            Fn::Sub: ${ProjectName}-EFSSecurityGroupId
+
+  # EFS Access Point for DAGs
+  DAGsAccessPoint:
+    Type: AWS::EFS::AccessPoint
+    Properties:
+      FileSystemId: !Ref AirflowEFSFileSystem
+      PosixUser:
+        Uid: '50000'  # Airflow user UID
+        Gid: '0'      # Root group
+      RootDirectory:
+        Path: /dags
+        CreationInfo:
+          OwnerUid: '50000'
+          OwnerGid: '0'
+          Permissions: '755'
+      AccessPointTags:
+        - Key: Name
+          Value: !Sub ${ProjectName}-dags-ap
+
+  # EFS Access Point for Logs
+  LogsAccessPoint:
+    Type: AWS::EFS::AccessPoint
+    Properties:
+      FileSystemId: !Ref AirflowEFSFileSystem
+      PosixUser:
+        Uid: '50000'
+        Gid: '0'
+      RootDirectory:
+        Path: /logs
+        CreationInfo:
+          OwnerUid: '50000'
+          OwnerGid: '0'
+          Permissions: '755'
+      AccessPointTags:
+        - Key: Name
+          Value: !Sub ${ProjectName}-logs-ap
+
+Outputs:
+  EFSFileSystemId:
+    Description: EFS File System ID
+    Value: !Ref AirflowEFSFileSystem
+    Export:
+      Name: !Sub ${ProjectName}-EFSFileSystemId
+
+  DAGsAccessPointId:
+    Description: EFS Access Point ID for DAGs
+    Value: !Ref DAGsAccessPoint
+    Export:
+      Name: !Sub ${ProjectName}-DAGsAccessPointId
+
+  LogsAccessPointId:
+    Description: EFS Access Point ID for Logs
+    Value: !Ref LogsAccessPoint
+    Export:
+      Name: !Sub ${ProjectName}-LogsAccessPointId

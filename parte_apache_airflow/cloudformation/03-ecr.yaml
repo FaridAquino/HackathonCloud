@@ -1,0 +1,57 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: 'ECR Repository for AlertaUTEC Airflow Docker images'
+
+Parameters:
+  ProjectName:
+    Type: String
+    Default: alerta-utec-airflow
+    Description: Project name for resource naming
+
+Resources:
+  # ECR Repository
+  AirflowECRRepository:
+    Type: AWS::ECR::Repository
+    Properties:
+      RepositoryName: !Sub ${ProjectName}
+      ImageScanningConfiguration:
+        ScanOnPush: false  # Disabled for cost savings
+      LifecyclePolicy:
+        LifecyclePolicyText: |
+          {
+            "rules": [
+              {
+                "rulePriority": 1,
+                "description": "Keep last 5 images",
+                "selection": {
+                  "tagStatus": "any",
+                  "countType": "imageCountMoreThan",
+                  "countNumber": 5
+                },
+                "action": {
+                  "type": "expire"
+                }
+              }
+            ]
+          }
+      Tags:
+        - Key: Name
+          Value: !Sub ${ProjectName}-ecr
+
+Outputs:
+  ECRRepositoryUri:
+    Description: ECR Repository URI
+    Value: !GetAtt AirflowECRRepository.RepositoryUri
+    Export:
+      Name: !Sub ${ProjectName}-ECRRepositoryUri
+
+  ECRRepositoryArn:
+    Description: ECR Repository ARN
+    Value: !GetAtt AirflowECRRepository.Arn
+    Export:
+      Name: !Sub ${ProjectName}-ECRRepositoryArn
+
+  ECRRepositoryName:
+    Description: ECR Repository Name
+    Value: !Ref AirflowECRRepository
+    Export:
+      Name: !Sub ${ProjectName}-ECRRepositoryName

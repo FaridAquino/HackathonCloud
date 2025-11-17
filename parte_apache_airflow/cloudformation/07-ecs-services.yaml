@@ -1,0 +1,272 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: 'ECS Services and Task Definitions for AlertaUTEC Airflow (Webserver + Scheduler)'
+
+Parameters:
+  ProjectName:
+    Type: String
+    Default: alerta-utec-airflow
+    Description: Project name for resource naming
+
+  ECRImageTag:
+    Type: String
+    Default: latest
+    Description: Docker image tag to deploy
+
+  DynamoDBTableName:
+    Type: String
+    Default: Incidents
+    Description: DynamoDB table name
+
+  AirflowAdminPassword:
+    Type: String
+    NoEcho: true
+    Description: Airflow admin password
+    MinLength: 8
+
+  S3BucketArn:
+    Type: String
+    Description: ARN of the S3 bucket for logs and backups
+
+Resources:
+  # NOTE: Using LabRole - AWS Academy does not allow custom IAM role creation
+  # All ECS tasks will use LabRole: arn:aws:iam::858624593089:role/LabRole
+
+  # Task Definition for Airflow Webserver
+  WebserverTaskDefinition:
+    Type: AWS::ECS::TaskDefinition
+    Properties:
+      Family: !Sub ${ProjectName}-webserver
+      NetworkMode: awsvpc
+      RequiresCompatibilities:
+        - FARGATE
+      Cpu: '512'  # 0.5 vCPU
+      Memory: '1024'  # 1 GB
+      ExecutionRoleArn: arn:aws:iam::858624593089:role/LabRole
+      TaskRoleArn: arn:aws:iam::858624593089:role/LabRole
+      ContainerDefinitions:
+        - Name: webserver
+          Image: !Sub 858624593089.dkr.ecr.us-east-1.amazonaws.com/alerta-utec-airflow:${ECRImageTag}
+          PortMappings:
+            - ContainerPort: 8080
+              Protocol: tcp
+          Command:
+            - webserver
+          Environment:
+            - Name: AIRFLOW_HOME
+              Value: /opt/airflow
+            - Name: AWS_DEFAULT_REGION
+              Value: !Ref AWS::Region
+            - Name: DYNAMODB_TABLE
+              Value: !Ref DynamoDBTableName
+            - Name: DYNAMO_TABLE
+              Value: !Ref DynamoDBTableName
+            - Name: USERS_TABLE
+              Value: api-hackathon-websocket-users-dev
+            - Name: FROM_EMAIL
+              Value: juan.velo@utec.edu.pe
+            - Name: AIRFLOW_ADMIN_USERNAME
+              Value: admin
+            - Name: AIRFLOW_ADMIN_PASSWORD
+              Value: !Ref AirflowAdminPassword
+            - Name: AIRFLOW_ADMIN_EMAIL
+              Value: admin@utec.edu.pe
+            - Name: AIRFLOW__DATABASE__SQL_ALCHEMY_CONN
+              Value: sqlite:////opt/airflow/logs/airflow.db
+            - Name: AIRFLOW__WEBSERVER__SECRET_KEY
+              Value: 36cab6dd23c3622b6783b26d24fff5cf
+          MountPoints:
+            - SourceVolume: dags
+              ContainerPath: /opt/airflow/dags
+              ReadOnly: false
+            - SourceVolume: logs
+              ContainerPath: /opt/airflow/logs
+              ReadOnly: false
+          LogConfiguration:
+            LogDriver: awslogs
+            Options:
+              awslogs-group: !ImportValue 
+                Fn::Sub: ${ProjectName}-ECSLogGroupName
+              awslogs-region: !Ref AWS::Region
+              awslogs-stream-prefix: webserver
+          HealthCheck:
+            Command:
+              - CMD-SHELL
+              - curl -f http://localhost:8080/health || exit 1
+            Interval: 30
+            Timeout: 10
+            Retries: 3
+            StartPeriod: 60
+      Volumes:
+        - Name: dags
+          EFSVolumeConfiguration:
+            FilesystemId: !ImportValue 
+              Fn::Sub: ${ProjectName}-EFSFileSystemId
+            TransitEncryption: ENABLED
+            AuthorizationConfig:
+              AccessPointId: !ImportValue 
+                Fn::Sub: ${ProjectName}-DAGsAccessPointId
+              IAM: DISABLED
+        - Name: logs
+          EFSVolumeConfiguration:
+            FilesystemId: !ImportValue 
+              Fn::Sub: ${ProjectName}-EFSFileSystemId
+            TransitEncryption: ENABLED
+            AuthorizationConfig:
+              AccessPointId: !ImportValue 
+                Fn::Sub: ${ProjectName}-LogsAccessPointId
+              IAM: DISABLED
+
+  # Task Definition for Airflow Scheduler
+  SchedulerTaskDefinition:
+    Type: AWS::ECS::TaskDefinition
+    Properties:
+      Family: !Sub ${ProjectName}-scheduler
+      NetworkMode: awsvpc
+      RequiresCompatibilities:
+        - FARGATE
+      Cpu: '512'  # 0.5 vCPU
+      Memory: '1024'  # 1 GB
+      ExecutionRoleArn: arn:aws:iam::858624593089:role/LabRole
+      TaskRoleArn: arn:aws:iam::858624593089:role/LabRole
+      ContainerDefinitions:
+        - Name: scheduler
+          Image: !Sub 858624593089.dkr.ecr.us-east-1.amazonaws.com/alerta-utec-airflow:${ECRImageTag}
+          Command:
+            - scheduler
+          Environment:
+            - Name: AIRFLOW_HOME
+              Value: /opt/airflow
+            - Name: AWS_DEFAULT_REGION
+              Value: !Ref AWS::Region
+            - Name: DYNAMODB_TABLE
+              Value: !Ref DynamoDBTableName
+            - Name: DYNAMO_TABLE
+              Value: !Ref DynamoDBTableName
+            - Name: USERS_TABLE
+              Value: api-hackathon-websocket-users-dev
+            - Name: FROM_EMAIL
+              Value: juan.velo@utec.edu.pe
+            - Name: AIRFLOW_ADMIN_USERNAME
+              Value: admin
+            - Name: AIRFLOW_ADMIN_PASSWORD
+              Value: !Ref AirflowAdminPassword
+            - Name: AIRFLOW_ADMIN_EMAIL
+              Value: admin@utec.edu.pe
+            - Name: AIRFLOW__DATABASE__SQL_ALCHEMY_CONN
+              Value: sqlite:////opt/airflow/logs/airflow.db
+            - Name: AIRFLOW__WEBSERVER__SECRET_KEY
+              Value: 36cab6dd23c3622b6783b26d24fff5cf
+          MountPoints:
+            - SourceVolume: dags
+              ContainerPath: /opt/airflow/dags
+              ReadOnly: false
+            - SourceVolume: logs
+              ContainerPath: /opt/airflow/logs
+              ReadOnly: false
+          LogConfiguration:
+            LogDriver: awslogs
+            Options:
+              awslogs-group: !ImportValue 
+                Fn::Sub: ${ProjectName}-ECSLogGroupName
+              awslogs-region: !Ref AWS::Region
+              awslogs-stream-prefix: scheduler
+      Volumes:
+        - Name: dags
+          EFSVolumeConfiguration:
+            FilesystemId: !ImportValue 
+              Fn::Sub: ${ProjectName}-EFSFileSystemId
+            TransitEncryption: ENABLED
+            AuthorizationConfig:
+              AccessPointId: !ImportValue 
+                Fn::Sub: ${ProjectName}-DAGsAccessPointId
+              IAM: DISABLED
+        - Name: logs
+          EFSVolumeConfiguration:
+            FilesystemId: !ImportValue 
+              Fn::Sub: ${ProjectName}-EFSFileSystemId
+            TransitEncryption: ENABLED
+            AuthorizationConfig:
+              AccessPointId: !ImportValue 
+                Fn::Sub: ${ProjectName}-LogsAccessPointId
+              IAM: DISABLED
+
+  # ECS Service for Webserver
+  WebserverService:
+    Type: AWS::ECS::Service
+    DependsOn: 
+      - WebserverTaskDefinition
+    Properties:
+      ServiceName: !Sub ${ProjectName}-webserver
+      Cluster: !ImportValue 
+        Fn::Sub: ${ProjectName}-ECSClusterName
+      TaskDefinition: !Ref WebserverTaskDefinition
+      DesiredCount: 1
+      LaunchType: FARGATE
+      NetworkConfiguration:
+        AwsvpcConfiguration:
+          AssignPublicIp: ENABLED
+          Subnets:
+            - !ImportValue 
+                Fn::Sub: ${ProjectName}-PublicSubnet1Id
+            - !ImportValue 
+                Fn::Sub: ${ProjectName}-PublicSubnet2Id
+          SecurityGroups:
+            - !ImportValue 
+                Fn::Sub: ${ProjectName}-ECSTasksSecurityGroupId
+      DeploymentConfiguration:
+        MaximumPercent: 200
+        MinimumHealthyPercent: 100
+      Tags:
+        - Key: Name
+          Value: !Sub ${ProjectName}-webserver-service
+
+  # ECS Service for Scheduler
+  SchedulerService:
+    Type: AWS::ECS::Service
+    DependsOn:
+      - SchedulerTaskDefinition
+    Properties:
+      ServiceName: !Sub ${ProjectName}-scheduler
+      Cluster: !ImportValue 
+        Fn::Sub: ${ProjectName}-ECSClusterName
+      TaskDefinition: !Ref SchedulerTaskDefinition
+      DesiredCount: 1
+      LaunchType: FARGATE
+      NetworkConfiguration:
+        AwsvpcConfiguration:
+          AssignPublicIp: DISABLED
+          Subnets:
+            - !ImportValue 
+                Fn::Sub: ${ProjectName}-PrivateSubnet1Id
+            - !ImportValue 
+                Fn::Sub: ${ProjectName}-PrivateSubnet2Id
+          SecurityGroups:
+            - !ImportValue 
+                Fn::Sub: ${ProjectName}-ECSTasksSecurityGroupId
+      DeploymentConfiguration:
+        MaximumPercent: 100
+        MinimumHealthyPercent: 0
+      Tags:
+        - Key: Name
+          Value: !Sub ${ProjectName}-scheduler-service
+
+Outputs:
+  WebserverServiceName:
+    Description: Webserver Service Name
+    Value: !GetAtt WebserverService.Name
+    Export:
+      Name: !Sub ${ProjectName}-WebserverServiceName
+
+  SchedulerServiceName:
+    Description: Scheduler Service Name
+    Value: !GetAtt SchedulerService.Name
+    Export:
+      Name: !Sub ${ProjectName}-SchedulerServiceName
+
+  LabRoleNote:
+    Description: IAM Role used for all ECS tasks
+    Value: Using LabRole (arn:aws:iam::858624593089:role/LabRole) for AWS Academy compatibility
+
+  WebserverAccessNote:
+    Description: How to access Airflow UI
+    Value: Use AWS CLI to get webserver task public IP then access http://[PUBLIC-IP]:8080

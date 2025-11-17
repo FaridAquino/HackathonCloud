@@ -1,0 +1,58 @@
+# Git files
+.git
+.gitignore
+.gitattributes
+
+# Documentation
+README.md
+docs/
+*.md
+
+# Python cache
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+*.egg-info/
+dist/
+build/
+
+# Virtual environments
+venv/
+env/
+ENV/
+
+# IDEs
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# CloudFormation templates (not needed in Docker image)
+cloudformation/
+
+# Scripts (not needed in Docker image)
+scripts/
+
+# Logs
+*.log
+logs/
+
+# Airflow specific
+airflow.db
+airflow-webserver.pid
+airflow-scheduler.pid
+
+# AWS
+.aws/
+
+# Temporary files
+*.tmp
+*.temp
+.cache/

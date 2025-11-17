@@ -1,0 +1,16 @@
+# Python dependencies for AlertaUTEC Airflow on ECS
+
+# Core Airflow (already installed in base image, but pinning version)
+apache-airflow==2.8.0
+
+# AWS providers
+apache-airflow-providers-amazon==8.15.0
+boto3==1.34.0
+botocore==1.34.0
+
+# Database
+psycopg2-binary==2.9.9
+
+# Utilities
+python-dateutil==2.8.2
+pytz==2023.3
