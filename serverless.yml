@@ -101,6 +101,13 @@ functions:
           path: /incident
           method: get
 
+  obtenerPersonal:
+    handler: obtener_personal.lambda_handler
+    events:
+      - httpApi:
+          path: /personal
+          method: get
+
   validarTokenAcceso:
     handler: validar_token_acceso.lambda_handler
     events:
