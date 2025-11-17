@@ -108,6 +108,13 @@ functions:
           path: /personal
           method: get
 
+  whoami:
+    handler: whoami.lambda_handler
+    events:
+      - httpApi:
+          path: /whoami
+          method: get
+
   validarTokenAcceso:
     handler: validar_token_acceso.lambda_handler
     events:
