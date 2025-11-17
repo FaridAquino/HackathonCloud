@@ -226,7 +226,7 @@ def lambda_handler(event, context):
 
         CreatedById = body['CreatedById']
         CreatedByName = body['CreatedByName']
-        Status = "active"
+        Status = "Pendiente"
 
         if (subType==10 or subType==13 or subType==14 or subType==43):
             Priority="critica"

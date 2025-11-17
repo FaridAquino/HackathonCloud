@@ -75,6 +75,8 @@ def lambda_handler(event, context):
             }
 
         # Buscar incidente específico en DynamoDB
+        print(f"Buscando incidente con tenant_id: {tenant_id}, uuid: {uuid}")
+        
         incident_resp = incidents_table.get_item(
             Key={
                 "tenant_id": tenant_id,
@@ -82,10 +84,16 @@ def lambda_handler(event, context):
             }
         )
 
+        print(f"Respuesta de DynamoDB: {incident_resp}")
+
         if "Item" not in incident_resp:
             return {
                 "statusCode": 404,
-                "body": json.dumps({"error": "Incidente no encontrado"})
+                "body": json.dumps({
+                    "error": "Incidente no encontrado",
+                    "searched_tenant_id": tenant_id,
+                    "searched_uuid": uuid
+                })
             }
 
         incident = incident_resp["Item"]
