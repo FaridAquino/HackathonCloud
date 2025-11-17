@@ -9,6 +9,42 @@ CONNECTIONS_TABLE = os.environ.get('CONNECTIONS_TABLE')
 TOKENS_TABLE = os.environ.get('TOKENS_TABLE')
 USERS_TABLE = os.environ.get('USERS_TABLE')
 dynamodb = boto3.resource('dynamodb')
+sns_client = boto3.client('sns')
+STATUS_TOPIC_ARN = os.environ.get('INCIDENT_STATUS_TOPIC_ARN')
+
+def publish_incident_status_change(incident: dict, changed_by: dict | None = None):
+    """
+    Envía un mensaje a SNS cuando cambia el estado de un incidente.
+    No rompe el flujo si SNS no está configurado o falla.
+    """
+    if not STATUS_TOPIC_ARN:
+        print("[SNS] INCIDENT_STATUS_TOPIC_ARN no configurado, no se publica evento.")
+        return
+
+    try:
+        message = {
+            "tenant_id": incident.get("tenant_id"),
+            "uuid": incident.get("uuid"),
+            "title": incident.get("Title"),
+            "status": incident.get("Status"),
+            "createdById": incident.get("CreatedById"),
+            "createdByName": incident.get("CreatedByName"),
+            "responsibleArea": incident.get("ResponsibleArea"),
+            "priority": incident.get("Priority"),
+            "isGlobal": incident.get("IsGlobal"),
+            "timestamp": datetime.now(timezone.utc).isoformat(),
+            "changedBy": changed_by or {}
+        }
+
+        sns_client.publish(
+            TopicArn=STATUS_TOPIC_ARN,
+            Subject="IncidentStatusChanged",
+            Message=json.dumps(message)
+        )
+        print("[SNS] Evento de cambio de estado publicado correctamente.")
+    except Exception as e:
+        print(f"[SNS] Error publicando cambio de estado: {e}")
+        
 
 def _validate_token_and_get_user(token_str):
 
@@ -275,6 +311,17 @@ def lambda_handler(event, context):
             'incident': incidente
         }
         transmitir(event, transmission_payload)
+
+        publish_incident_status_change(
+            incidente,
+            changed_by={
+                "source": "WebSocket",
+                "action": "CreateIncident",
+                "role": user_role
+            }
+        )
+
+        
         return {
             'statusCode': 200,
             'body': json.dumps({'message': 'Incidente publicado y transmitido', 'responseId': incidente['uuid']})
@@ -532,6 +579,26 @@ def StaffChooseIncident(event, context):
             }
             transmitir(event, transmission_payload)
 
+                # SNS: incidente pasa a EnAtencion (PERSONAL se lo asigna)
+            full_incident_resp = table.get_item(
+                Key={
+                    'tenant_id': tenant_id,
+                    'uuid': incident_uuid
+                }
+            )
+            full_incident = full_incident_resp.get('Item')
+            if full_incident:
+                publish_incident_status_change(
+                    full_incident,
+                    changed_by={
+                        "source": "WebSocket",
+                        "action": "StaffChooseIncident",
+                        "role": user_role,
+                        "personal_uuid": personal_uuid
+                    }
+                )
+
+
             return {
                 'statusCode': 200,
                 'body': json.dumps({'message': 'Incidente asignado al PERSONAL', 'updatedAttributes': response.get('Attributes'), 'userUpdate': response2.get('Attributes')})
@@ -624,6 +691,26 @@ def CoordinatorAssignIncident(event,context):
                 }
 
                 transmitir(event, transmission_payload)
+
+                
+                # SNS: EnAtencion por coordinador
+                full_incident_resp = table.get_item(
+                    Key={
+                        'tenant_id': tenant_id,
+                        'uuid': incident_uuid
+                    }
+                )
+                full_incident = full_incident_resp.get('Item')
+                if full_incident:
+                    publish_incident_status_change(
+                        full_incident,
+                        changed_by={
+                            "source": "WebSocket",
+                            "action": "CoordinatorAssignIncident",
+                            "role": user_role,
+                            "assigned_to_id": assigned_to_id
+                        }
+                    )
 
                 return {
                     'statusCode': 200,
@@ -776,6 +863,25 @@ def SolvedIncident(event, context):
             }
             transmitir(event, transmission_payload)
 
+            # SNS: Resuelto por PERSONAL
+            full_incident_resp = table.get_item(
+                Key={
+                    'tenant_id': incidente_tenant_id,
+                    'uuid': incidente_uuid
+                }
+            )
+            full_incident = full_incident_resp.get('Item')
+            if full_incident:
+                publish_incident_status_change(
+                    full_incident,
+                    changed_by={
+                        "source": "WebSocket",
+                        "action": "SolvedIncident",
+                        "role": user_role,
+                        "personal_uuid": personal_uuid
+                    }
+                )
+
             return {
                 'statusCode': 200,
                 'body': json.dumps({
@@ -914,6 +1020,24 @@ def AuthorityManageIncidents(event,context):
                     'incident': response.get('Attributes')
                 }
                 transmitir(event, transmission_payload)
+
+                # SNS: Resuelto/Cerrado por COORDINATOR
+                full_incident_resp = table.get_item(
+                    Key={
+                        'tenant_id': incidente_tenant_id,
+                        'uuid': incidente_uuid
+                    }
+                )
+                full_incident = full_incident_resp.get('Item')
+                if full_incident:
+                    publish_incident_status_change(
+                        full_incident,
+                        changed_by={
+                            "source": "WebSocket",
+                            "action": "AuthorityManageIncidents",
+                            "role": user_role
+                        }
+                    )
 
             except Exception as e:
                 print(f"Error al actualizar: {e}")
