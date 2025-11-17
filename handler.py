@@ -540,7 +540,10 @@ def StaffChooseIncident(event, context):
                     'tenant_id': tenant_id,
                     'uuid': incident_uuid
                 },
-                UpdateExpression="SET AssignedToPersonalId = :pid, Status = :s, ExecutingAt = :ea",
+                UpdateExpression="SET AssignedToPersonalId = :pid, #status = :s, ExecutingAt = :ea",
+                ExpressionAttributeNames={
+                    '#status': 'Status'
+                },
                 ExpressionAttributeValues={
                     ':pid': personal_uuid,
                     ':s': 'EnAtencion',
@@ -652,7 +655,10 @@ def CoordinatorAssignIncident(event,context):
                         'tenant_id': tenant_id,
                         'uuid': incident_uuid
                     },
-                    UpdateExpression="SET AssignedToPersonalId = :pid, Status = :s, ExecutingAt = :ea",
+                    UpdateExpression="SET AssignedToPersonalId = :pid, #status = :s, ExecutingAt = :ea",
+                    ExpressionAttributeNames={
+                        '#status': 'Status'
+                    },
                     ExpressionAttributeValues={
                         ':pid': assigned_to_id,
                         ':s': 'EnAtencion',
