@@ -22,11 +22,8 @@ provider:
     CONNECTIONS_TABLE: ${self:custom.connectionsTable}
     USERS_TABLE: ${self:service}-users-${sls:stage}
     TOKENS_TABLE: ${self:service}-tokens-${sls:stage}
-    INCIDENT_STATUS_TOPIC_ARN:
-      TopicArn:
-        Ref: IncidentStatusTopic
-      Protocol: email
-      Endpoint: gerard.iruri@utec.edu.pe
+    INCIDENT_STATUS_TOPIC_ARN: arn:aws:sns:${self:provider.region}:${aws:accountId}:${self:service}-incident-status-${sls:stage}
+
 
 custom:
   incidentTable: Incidents
