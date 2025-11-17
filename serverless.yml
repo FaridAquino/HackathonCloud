@@ -92,6 +92,13 @@ functions:
           path: /users
           method: get
 
+  obtenerIncidenteEspecifico:
+    handler: obtener_incidente_especifico.lambda_handler
+    events:
+      - httpApi:
+          path: /incident
+          method: get
+
   validarTokenAcceso:
     handler: validar_token_acceso.lambda_handler
     events:
