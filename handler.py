@@ -52,9 +52,6 @@ def _validate_token_and_get_user(token_str):
         print(f"Auth Exception: {e}")
         return None
 
-# Asumimos que estas variables globales están definidas:
-# dynamodb, CONNECTIONS_TABLE, USERS_TABLE
-
 def transmitir(event, message_payload_dict):
     try:
         connections_table = dynamodb.Table(CONNECTIONS_TABLE)
