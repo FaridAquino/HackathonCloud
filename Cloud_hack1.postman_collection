@@ -1,0 +1,450 @@
+{
+	"info": {
+		"_postman_id": "f02ad20b-c1cf-4c68-ace1-257b7e583638",
+		"name": "Cloud_hack",
+		"schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
+		"_exporter_id": "43479410",
+		"_collection_link": "https://gerard-9690572.postman.co/workspace/Gerard's-Workspace~89e55100-a3c3-41ef-8fca-cf2ad92b2f1b/collection/43479410-f02ad20b-c1cf-4c68-ace1-257b7e583638?action=share&source=collection_link&creator=43479410"
+	},
+	"item": [
+		{
+			"name": "crear_usuario",
+			"request": {
+				"method": "POST",
+				"header": [],
+				"body": {
+					"mode": "raw",
+					"raw": "{\r\n  \"role\": \"COMMUNITY\",\r\n  \"userId\": \"202410627\",\r\n  \"fullName\": \"Gerard Iruri\",\r\n  \"email\": \"gerard@utec.edu.pe\",\r\n  \"area\": \"Seguridad\",\r\n  \"communityCode\": \"12345678\",\r\n  \"status\": \"ACTIVE\",\r\n  \"toList\": [\"personal1\", \"personal2\"],\r\n  \"password\": \"MiPassword123\"\r\n}\r\n",
+					"options": {
+						"raw": {
+							"language": "json"
+						}
+					}
+				},
+				"url": {
+					"raw": "https://s43mwsogjk.execute-api.us-east-1.amazonaws.com/users",
+					"protocol": "https",
+					"host": [
+						"s43mwsogjk",
+						"execute-api",
+						"us-east-1",
+						"amazonaws",
+						"com"
+					],
+					"path": [
+						"users"
+					]
+				}
+			},
+			"response": []
+		},
+		{
+			"name": "login_usuario",
+			"request": {
+				"method": "POST",
+				"header": [],
+				"body": {
+					"mode": "raw",
+					"raw": "{\r\n  \"email\": \"patricia.velasquez@utec.edu.pe\",\r\n  \"password\": \"hola123\"\r\n}",
+					"options": {
+						"raw": {
+							"language": "json"
+						}
+					}
+				},
+				"url": {
+					"raw": "https://s43mwsogjk.execute-api.us-east-1.amazonaws.com/login",
+					"protocol": "https",
+					"host": [
+						"s43mwsogjk",
+						"execute-api",
+						"us-east-1",
+						"amazonaws",
+						"com"
+					],
+					"path": [
+						"login"
+					]
+				}
+			},
+			"response": []
+		},
+		{
+			"name": "get_user",
+			"request": {
+				"auth": {
+					"type": "bearer",
+					"bearer": [
+						{
+							"key": "token",
+							"value": "bfebbf53-534f-4f2b-8780-b308dd98edc4",
+							"type": "string"
+						}
+					]
+				},
+				"method": "GET",
+				"header": [
+					{
+						"key": "",
+						"value": "",
+						"type": "text",
+						"disabled": true
+					}
+				],
+				"url": {
+					"raw": "https://qeb2lf1cif.execute-api.us-east-1.amazonaws.com/users",
+					"protocol": "https",
+					"host": [
+						"qeb2lf1cif",
+						"execute-api",
+						"us-east-1",
+						"amazonaws",
+						"com"
+					],
+					"path": [
+						"users"
+					]
+				}
+			},
+			"response": []
+		},
+		{
+			"name": "validarToken",
+			"request": {
+				"method": "POST",
+				"header": [],
+				"body": {
+					"mode": "raw",
+					"raw": "{\r\n    \"token\": \"bfebbf53-534f-4f2b-8780-b308dd98edc4\"\r\n}",
+					"options": {
+						"raw": {
+							"language": "json"
+						}
+					}
+				},
+				"url": {
+					"raw": "https://qeb2lf1cif.execute-api.us-east-1.amazonaws.com/token/validate",
+					"protocol": "https",
+					"host": [
+						"qeb2lf1cif",
+						"execute-api",
+						"us-east-1",
+						"amazonaws",
+						"com"
+					],
+					"path": [
+						"token",
+						"validate"
+					]
+				}
+			},
+			"response": []
+		},
+		{
+			"name": "user_get_his_incidents",
+			"request": {
+				"auth": {
+					"type": "bearer",
+					"bearer": [
+						{
+							"key": "token",
+							"value": "cde0b0c0-061a-4049-a36a-b711e7c92234",
+							"type": "string"
+						}
+					]
+				},
+				"method": "GET",
+				"header": [],
+				"url": {
+					"raw": "https://s43mwsogjk.execute-api.us-east-1.amazonaws.com/incidents",
+					"protocol": "https",
+					"host": [
+						"s43mwsogjk",
+						"execute-api",
+						"us-east-1",
+						"amazonaws",
+						"com"
+					],
+					"path": [
+						"incidents"
+					]
+				}
+			},
+			"response": []
+		},
+		{
+			"name": "user_get_global_incidents",
+			"request": {
+				"auth": {
+					"type": "bearer",
+					"bearer": [
+						{
+							"key": "token",
+							"value": "cde0b0c0-061a-4049-a36a-b711e7c92234",
+							"type": "string"
+						}
+					]
+				},
+				"method": "GET",
+				"header": [],
+				"url": {
+					"raw": "https://s43mwsogjk.execute-api.us-east-1.amazonaws.com/incidents?global=true",
+					"protocol": "https",
+					"host": [
+						"s43mwsogjk",
+						"execute-api",
+						"us-east-1",
+						"amazonaws",
+						"com"
+					],
+					"path": [
+						"incidents"
+					],
+					"query": [
+						{
+							"key": "global",
+							"value": "true"
+						}
+					]
+				}
+			},
+			"response": []
+		},
+		{
+			"name": "user_get_HIS_PENDING_incidents",
+			"request": {
+				"auth": {
+					"type": "bearer",
+					"bearer": [
+						{
+							"key": "token",
+							"value": "cde0b0c0-061a-4049-a36a-b711e7c92234",
+							"type": "string"
+						}
+					]
+				},
+				"method": "GET",
+				"header": [],
+				"url": {
+					"raw": "https://s43mwsogjk.execute-api.us-east-1.amazonaws.com/incidents?status=Pendiente",
+					"protocol": "https",
+					"host": [
+						"s43mwsogjk",
+						"execute-api",
+						"us-east-1",
+						"amazonaws",
+						"com"
+					],
+					"path": [
+						"incidents"
+					],
+					"query": [
+						{
+							"key": "status",
+							"value": "Pendiente"
+						}
+					]
+				}
+			},
+			"response": []
+		},
+		{
+			"name": "personal_coordinator_get_incidents_byArea",
+			"request": {
+				"auth": {
+					"type": "bearer",
+					"bearer": [
+						{
+							"key": "token",
+							"value": "0f08e04f-c33a-46d5-b4a9-162065a806db",
+							"type": "string"
+						}
+					]
+				},
+				"method": "GET",
+				"header": [],
+				"url": {
+					"raw": "https://s43mwsogjk.execute-api.us-east-1.amazonaws.com/incidents",
+					"protocol": "https",
+					"host": [
+						"s43mwsogjk",
+						"execute-api",
+						"us-east-1",
+						"amazonaws",
+						"com"
+					],
+					"path": [
+						"incidents"
+					]
+				}
+			},
+			"response": []
+		},
+		{
+			"name": "authority_get_All_incidents",
+			"request": {
+				"auth": {
+					"type": "bearer",
+					"bearer": [
+						{
+							"key": "token",
+							"value": "1ae729a5-482c-4b48-b9b8-08cd7b30fbfc",
+							"type": "string"
+						}
+					]
+				},
+				"method": "GET",
+				"header": [],
+				"url": {
+					"raw": "https://s43mwsogjk.execute-api.us-east-1.amazonaws.com/incidents",
+					"protocol": "https",
+					"host": [
+						"s43mwsogjk",
+						"execute-api",
+						"us-east-1",
+						"amazonaws",
+						"com"
+					],
+					"path": [
+						"incidents"
+					]
+				}
+			},
+			"response": []
+		},
+		{
+			"name": "authority_get_incidents_byArea",
+			"request": {
+				"auth": {
+					"type": "bearer",
+					"bearer": [
+						{
+							"key": "token",
+							"value": "db59ec26-6d88-43a3-928d-397626dbcad0",
+							"type": "string"
+						}
+					]
+				},
+				"method": "GET",
+				"header": [],
+				"url": {
+					"raw": "https://s43mwsogjk.execute-api.us-east-1.amazonaws.com/incidents?priority=Alta&status=Pendiente&global=false&ResponsibleArea=Seguridad",
+					"protocol": "https",
+					"host": [
+						"s43mwsogjk",
+						"execute-api",
+						"us-east-1",
+						"amazonaws",
+						"com"
+					],
+					"path": [
+						"incidents"
+					],
+					"query": [
+						{
+							"key": "priority",
+							"value": "Alta"
+						},
+						{
+							"key": "status",
+							"value": "Pendiente"
+						},
+						{
+							"key": "global",
+							"value": "false"
+						},
+						{
+							"key": "ResponsibleArea",
+							"value": "Seguridad"
+						}
+					]
+				}
+			},
+			"response": []
+		},
+		{
+			"name": "user_get_incidents_by_PRIORITY",
+			"request": {
+				"auth": {
+					"type": "bearer",
+					"bearer": [
+						{
+							"key": "token",
+							"value": "cde0b0c0-061a-4049-a36a-b711e7c92234",
+							"type": "string"
+						}
+					]
+				},
+				"method": "GET",
+				"header": [],
+				"url": {
+					"raw": "https://s43mwsogjk.execute-api.us-east-1.amazonaws.com/incidents?priority=Alta&status=Resuelto",
+					"protocol": "https",
+					"host": [
+						"s43mwsogjk",
+						"execute-api",
+						"us-east-1",
+						"amazonaws",
+						"com"
+					],
+					"path": [
+						"incidents"
+					],
+					"query": [
+						{
+							"key": "priority",
+							"value": "Alta"
+						},
+						{
+							"key": "status",
+							"value": "Resuelto"
+						}
+					]
+				}
+			},
+			"response": []
+		},
+		{
+			"name": "authority_assign_area",
+			"request": {
+				"auth": {
+					"type": "bearer",
+					"bearer": [
+						{
+							"key": "token",
+							"value": "52b0fabf-0686-4a7e-b525-206b730168ae",
+							"type": "string"
+						}
+					]
+				},
+				"method": "PUT",
+				"header": [],
+				"body": {
+					"mode": "raw",
+					"raw": "{\r\n  \"currentRole\": \"PERSONAL\",\r\n  \"uuid\": \"a1b2c3d4-e5f6-7890-abcd-ef12345fedcb\",\r\n  \"newArea\": \"Seguridad\"\r\n}",
+					"options": {
+						"raw": {
+							"language": "json"
+						}
+					}
+				},
+				"url": {
+					"raw": "https://s43mwsogjk.execute-api.us-east-1.amazonaws.com/users/assign-role-area",
+					"protocol": "https",
+					"host": [
+						"s43mwsogjk",
+						"execute-api",
+						"us-east-1",
+						"amazonaws",
+						"com"
+					],
+					"path": [
+						"users",
+						"assign-role-area"
+					]
+				}
+			},
+			"response": []
+		}
+	]
+}
